@@ -1,135 +1,154 @@
-const CACHE_NAME = 'coletas-v2.0';
+const CACHE_NAME = 'coletas-offline-v2.1';
+
+// Lista de recursos que devem ser cacheados para funcionamento offline
 const urlsToCache = [
-  '/index.html',
-  '/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+  './',
+  './index.html',
+  './manifest.json',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2'
 ];
 
-// Instalar o Service Worker
+// Instalar o Service Worker e cachear recursos
 self.addEventListener('install', event => {
-  console.log('Service Worker: Instalando versão 2.0 com campo VÍNCULO');
+  console.log('SW: Instalando versão offline corrigida');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto - versão 2.0');
-        return cache.addAll(urlsToCache);
+        console.log('SW: Cacheando recursos para offline');
+        return cache.addAll(urlsToCache.map(url => new Request(url, {cache: 'reload'})));
+      })
+      .catch(error => {
+        console.error('SW: Erro ao cachear recursos:', error);
+        // Mesmo com erro, cacheia pelo menos o essencial
+        return caches.open(CACHE_NAME).then(cache => {
+          return cache.addAll([
+            './',
+            './index.html'
+          ]);
+        });
       })
   );
-  // Força a ativação imediata da nova versão
+  // Força ativação imediata
   self.skipWaiting();
 });
 
-// Interceptar requisições de rede
+// Interceptar todas as requisições
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Retorna o cache se encontrado
-        if (response) {
-          return response;
-        }
-
-        return fetch(event.request).then(
-          response => {
-            // Verifica se a resposta é válida
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clona a resposta
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
+  const requestUrl = new URL(event.request.url);
+  
+  // Para requisições do mesmo domínio (arquivos do app)
+  if (requestUrl.origin === location.origin) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(cachedResponse => {
+          if (cachedResponse) {
+            console.log('SW: Servindo do cache:', event.request.url);
+            return cachedResponse;
           }
-        );
-      })
-  );
+          
+          // Se não estiver em cache, tenta buscar online
+          return fetch(event.request)
+            .then(response => {
+              // Se conseguiu buscar, adiciona ao cache
+              if (response && response.status === 200) {
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME)
+                  .then(cache => {
+                    cache.put(event.request, responseClone);
+                  });
+              }
+              return response;
+            })
+            .catch(() => {
+              // Se falhou (offline), tenta retornar index.html para SPAs
+              if (event.request.mode === 'navigate') {
+                return caches.match('./index.html');
+              }
+              // Para outros recursos, retorna uma resposta vazia
+              return new Response('', {
+                status: 404,
+                statusText: 'Recurso não disponível offline'
+              });
+            });
+        })
+    );
+  } else {
+    // Para recursos externos (fontes, CDNs, etc)
+    event.respondWith(
+      caches.match(event.request)
+        .then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          
+          // Tenta buscar online
+          return fetch(event.request)
+            .then(response => {
+              if (response && response.status === 200) {
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME)
+                  .then(cache => {
+                    cache.put(event.request, responseClone);
+                  });
+              }
+              return response;
+            })
+            .catch(() => {
+              // Se falhou, retorna resposta vazia (graceful degradation)
+              return new Response('', { status: 200 });
+            });
+        })
+    );
+  }
 });
 
-// Atualizar o Service Worker
+// Ativar o Service Worker e limpar caches antigos
 self.addEventListener('activate', event => {
-  console.log('Service Worker: Ativando versão 2.0');
+  console.log('SW: Ativando versão offline corrigida');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Service Worker: Removendo cache antigo:', cacheName);
+            console.log('SW: Removendo cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  // Assume controle de todas as abas abertas
+  
+  // Assume controle imediatamente
   return self.clients.claim();
 });
 
-// Sincronização em background
-self.addEventListener('sync', event => {
-  if (event.tag === 'background-sync') {
-    event.waitUntil(doBackgroundSync());
-  }
-});
-
-function doBackgroundSync() {
-  console.log('Service Worker: Sincronização em background executada');
-  // Aqui você pode implementar lógica para sincronizar dados quando voltar online
-  return Promise.resolve();
-}
-
-// Notificações push (opcional)
-self.addEventListener('push', event => {
-  const options = {
-    body: event.data ? event.data.text() : 'Nova atualização disponível no sistema de coletas',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
-    actions: [
-      {
-        action: 'explore',
-        title: 'Abrir App',
-        icon: '/icons/icon-72x72.png'
-      },
-      {
-        action: 'close',
-        title: 'Fechar',
-        icon: '/icons/icon-72x72.png'
-      }
-    ]
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('Coletas - Sistema Patrimonial', options)
-  );
-});
-
-// Manipular cliques em notificações
-self.addEventListener('notificationclick', event => {
-  console.log('Service Worker: Notificação clicada');
-  event.notification.close();
-
-  if (event.action === 'explore') {
-    event.waitUntil(
-      clients.openWindow('/')
-    );
-  }
-});
-
-// Mensagem para o console quando o SW está pronto
+// Notificar clientes sobre atualizações
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+  
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports[0].postMessage({version: CACHE_NAME});
+  }
 });
 
-console.log('Service Worker 2.0: Sistema de Coletas com Controle de Vínculos Patrimoniais carregado');
+// Debug: Log quando o SW está pronto
+self.addEventListener('activate', () => {
+  console.log('SW: Pronto para funcionar offline!');
+});
+
+// Fallback para navegação quando offline
+self.addEventListener('fetch', event => {
+  // Se for uma navegação (usuário abrindo o app)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => {
+          // Se offline, retorna a página principal
+          return caches.match('./index.html');
+        })
+    );
+  }
+});
