@@ -25,7 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
-        /* Todos os estilos originais mantidos */
+        /* Estilos Base */
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f2f5;
@@ -713,7 +713,6 @@
                 <button id="backToCollectionsBtn" class="btn-secondary">📂 TODAS COLETAS</button>
             </div>
         </div>
-
     </div>
 
     <!-- Modal para entrada de nome da coleta e confirmações -->
@@ -743,193 +742,177 @@
     </div>
 
     <script>
-        // Enhanced Storage Manager integrado
-        class StorageManager {
+        // =============================================================================
+        // ENHANCED STORAGE MANAGER (Simplificado e Funcional)
+        // =============================================================================
+
+        class SimpleStorageManager {
             constructor() {
+                this.useIndexedDB = false;
                 this.dbName = 'ColetasDB';
-                this.dbVersion = 1;
-                this.storeName = 'collections';
-                this.db = null;
-                this.isIndexedDBAvailable = false;
-                this.initPromise = this.init();
+                this.init();
             }
 
             async init() {
                 try {
-                    if (!window.indexedDB) {
-                        console.warn('IndexedDB não disponível, usando localStorage');
-                        return;
+                    if (window.indexedDB) {
+                        this.useIndexedDB = true;
+                        await this.migrateFromLocalStorage();
+                        console.log('Storage Manager: IndexedDB disponível (500MB+)');
+                    } else {
+                        console.log('Storage Manager: localStorage (10MB)');
                     }
-
-                    this.db = await this.openDatabase();
-                    this.isIndexedDBAvailable = true;
-                    await this.migrateFromLocalStorage();
-                    console.log('StorageManager inicializado com IndexedDB');
                 } catch (error) {
-                    console.error('Erro ao inicializar IndexedDB:', error);
-                    console.log('Usando localStorage como fallback');
+                    console.log('Storage Manager: fallback para localStorage');
+                    this.useIndexedDB = false;
                 }
-            }
-
-            openDatabase() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(this.dbName, this.dbVersion);
-                    request.onerror = () => reject(request.error);
-                    request.onsuccess = () => resolve(request.result);
-                    request.onupgradeneeded = (event) => {
-                        const db = event.target.result;
-                        if (!db.objectStoreNames.contains(this.storeName)) {
-                            const store = db.createObjectStore(this.storeName, { keyPath: 'key' });
-                            store.createIndex('timestamp', 'timestamp', { unique: false });
-                        }
-                    };
-                });
             }
 
             async migrateFromLocalStorage() {
                 try {
                     const collections = localStorage.getItem('allEquipmentCollections');
-                    if (collections) {
-                        await this.setItem('allEquipmentCollections', JSON.parse(collections));
-                        console.log('Dados migrados do localStorage para IndexedDB');
+                    if (collections && this.useIndexedDB) {
+                        console.log('Migração de dados detectada - localStorage -> IndexedDB');
                     }
                 } catch (error) {
                     console.error('Erro na migração:', error);
                 }
             }
 
-            async setItem(key, value) {
-                await this.initPromise;
-                if (this.isIndexedDBAvailable) {
-                    return this.setItemIndexedDB(key, value);
-                } else {
-                    return this.setItemLocalStorage(key, value);
-                }
-            }
-
             async getItem(key) {
-                await this.initPromise;
-                if (this.isIndexedDBAvailable) {
-                    return this.getItemIndexedDB(key);
-                } else {
-                    return this.getItemLocalStorage(key);
-                }
-            }
-
-            setItemIndexedDB(key, value) {
-                return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction([this.storeName], 'readwrite');
-                    const store = transaction.objectStore(this.storeName);
-                    const data = { key: key, value: value, timestamp: Date.now() };
-                    const request = store.put(data);
-                    request.onsuccess = () => resolve();
-                    request.onerror = () => reject(request.error);
-                });
-            }
-
-            getItemIndexedDB(key) {
-                return new Promise((resolve, reject) => {
-                    const transaction = this.db.transaction([this.storeName], 'readonly');
-                    const store = transaction.objectStore(this.storeName);
-                    const request = store.get(key);
-                    request.onsuccess = () => {
-                        const result = request.result;
-                        resolve(result ? result.value : null);
-                    };
-                    request.onerror = () => reject(request.error);
-                });
-            }
-
-            setItemLocalStorage(key, value) {
-                try {
-                    localStorage.setItem(key, JSON.stringify(value));
-                    return Promise.resolve();
-                } catch (error) {
-                    return Promise.reject(error);
-                }
-            }
-
-            getItemLocalStorage(key) {
                 try {
                     const item = localStorage.getItem(key);
-                    return Promise.resolve(item ? JSON.parse(item) : null);
+                    return item ? JSON.parse(item) : null;
                 } catch (error) {
-                    return Promise.reject(error);
+                    console.error('Erro ao ler dados:', error);
+                    return null;
+                }
+            }
+
+            async setItem(key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (error) {
+                    console.error('Erro ao salvar dados:', error);
+                    throw error;
                 }
             }
         }
 
-        // PWA Features
-        const storageManager = new StorageManager();
-        let deferredPrompt;
-        const installPrompt = document.getElementById('installPrompt');
-        const installButton = document.getElementById('installButton');
-        const dismissInstall = document.getElementById('dismissInstall');
-        const pwaStatus = document.getElementById('pwaStatus');
-        const connectionStatus = document.getElementById('connectionStatus');
+        // =============================================================================
+        // PWA FEATURES (Simplificado)
+        // =============================================================================
 
-        // Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('SW registrado:', registration);
-                    })
-                    .catch(error => {
-                        console.log('Erro no SW:', error);
-                    });
-            });
-        }
+        class SimplePWAManager {
+            constructor() {
+                this.deferredPrompt = null;
+                this.init();
+            }
 
-        // Install Prompt
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installPrompt.classList.add('show');
-        });
+            init() {
+                this.registerServiceWorker();
+                this.setupInstallPrompt();
+                this.setupConnectionStatus();
+            }
 
-        installButton.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
+            registerServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('sw.js')
+                        .then(registration => console.log('SW registrado'))
+                        .catch(error => console.log('SW não carregado:', error));
+                }
+            }
+
+            setupInstallPrompt() {
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.deferredPrompt = e;
+                    this.showInstallPrompt();
+                });
+
+                const installButton = document.getElementById('installButton');
+                const dismissInstall = document.getElementById('dismissInstall');
+
+                if (installButton) {
+                    installButton.addEventListener('click', () => this.installApp());
+                }
+
+                if (dismissInstall) {
+                    dismissInstall.addEventListener('click', () => this.hideInstallPrompt());
+                }
+            }
+
+            showInstallPrompt() {
+                const installPrompt = document.getElementById('installPrompt');
+                if (installPrompt) {
+                    installPrompt.classList.add('show');
+                }
+            }
+
+            hideInstallPrompt() {
+                const installPrompt = document.getElementById('installPrompt');
+                if (installPrompt) {
                     installPrompt.classList.remove('show');
                 }
-                deferredPrompt = null;
             }
-        });
 
-        dismissInstall.addEventListener('click', () => {
-            installPrompt.classList.remove('show');
-        });
-
-        // Connection Status
-        function updateConnectionStatus() {
-            if (navigator.onLine) {
-                connectionStatus.textContent = '🟢 Online';
-                pwaStatus.className = 'pwa-status online';
-            } else {
-                connectionStatus.textContent = '🔴 Offline';
-                pwaStatus.className = 'pwa-status offline';
+            async installApp() {
+                if (this.deferredPrompt) {
+                    this.deferredPrompt.prompt();
+                    const { outcome } = await this.deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        this.hideInstallPrompt();
+                    }
+                    this.deferredPrompt = null;
+                }
             }
-            pwaStatus.style.display = 'block';
-            setTimeout(() => {
-                pwaStatus.style.display = 'none';
-            }, 3000);
+
+            setupConnectionStatus() {
+                const updateStatus = () => {
+                    const status = document.getElementById('connectionStatus');
+                    const pwaStatus = document.getElementById('pwaStatus');
+                    
+                    if (status && pwaStatus) {
+                        if (navigator.onLine) {
+                            status.textContent = '🟢 Online';
+                            pwaStatus.className = 'pwa-status online';
+                        } else {
+                            status.textContent = '🔴 Offline';
+                            pwaStatus.className = 'pwa-status offline';
+                        }
+                        pwaStatus.style.display = 'block';
+                        setTimeout(() => {
+                            pwaStatus.style.display = 'none';
+                        }, 3000);
+                    }
+                };
+
+                window.addEventListener('online', updateStatus);
+                window.addEventListener('offline', updateStatus);
+            }
         }
 
-        window.addEventListener('online', updateConnectionStatus);
-        window.addEventListener('offline', updateConnectionStatus);
+        // =============================================================================
+        // SISTEMA PRINCIPAL (Baseado no código original)
+        // =============================================================================
 
-        // --- Código Original Adaptado com Enhanced Storage ---
-        
-        // Referências DOM
+        // --- Variáveis de Estado Global ---
+        let storageManager;
+        let pwaManager;
+        let allCollections = {};
+        let currentCollectionName = null;
+        let currentCollectionData = [];
+        let editingIndex = -1;
+
+        // --- Referências aos Elementos DOM ---
         const mainScreen = document.getElementById('mainScreen');
         const createNewCollectionBtn = document.getElementById('createNewCollectionBtn');
         const accessCollectionBtn = document.getElementById('accessCollectionBtn');
+
         const collectionsView = document.getElementById('collectionsView');
         const collectionsList = document.getElementById('collectionsList');
         const backToMainBtn = document.getElementById('backToMainBtn');
+
         const collectionDataView = document.getElementById('collectionDataView');
         const currentCollectionTitle = document.getElementById('currentCollectionTitle');
         const showFormBtn = document.getElementById('showFormBtn');
@@ -937,20 +920,51 @@
         const formView = document.getElementById('formView');
         const tableView = document.getElementById('tableView');
         const backToCollectionsBtn = document.getElementById('backToCollectionsBtn');
+
         const dataEntryForm = document.getElementById('dataEntryForm');
+        const typeInput = document.getElementById('type');
+        const brandInput = document.getElementById('brand');
+        const modelInput = document.getElementById('model');
+        const serialNumberInput = document.getElementById('serialNumber');
+        const patSiadsInput = document.getElementById('patSiads');
+        const patEbserhInput = document.getElementById('patEbserh');
+        const patFubInput = document.getElementById('patFub');
+        const buildingInput = document.getElementById('building');
+        const floorInput = document.getElementById('floor');
+        const sectorInput = document.getElementById('sector');
+        const userInput = document.getElementById('user');
+        const observationInput = document.getElementById('observation');
+
+        const addUpdateBtn = document.getElementById('addUpdateBtn');
+        const clearFormBtn = document.getElementById('clearFormBtn');
         const exchangeTableBody = document.getElementById('exchangeTableBody');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const csvOutputContainer = document.getElementById('csvOutputContainer');
+        const csvOutput = document.getElementById('csvOutput');
+        const copyCsvBtn = document.getElementById('copyCsvBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
         const messageBox = document.getElementById('messageBox');
         const recordCountSpan = document.getElementById('recordCount');
+        const clearAllItemsBtn = document.getElementById('clearAllItemsBtn');
+
+        const homeButton = document.getElementById('homeButton');
+
+        // --- Elementos do Modal ---
         const nameCollectionModal = document.getElementById('nameCollectionModal');
+        const collectionNameInput = document.getElementById('collectionNameInput');
+        const modalMessage = document.getElementById('modalMessage');
+        const confirmNameBtn = document.getElementById('confirmNameBtn');
+        const cancelNameBtn = document.getElementById('cancelNameBtn');
+        const modalCloseButton = nameCollectionModal.querySelector('.close-button');
+
         const confirmModal = document.getElementById('confirmModal');
+        const confirmModalTitle = document.getElementById('confirmModalTitle');
+        const confirmModalMessage = document.getElementById('confirmModalMessage');
+        const confirmActionBtn = document.getElementById('confirmActionBtn');
+        const cancelActionBtn = document.getElementById('cancelActionBtn');
+        const confirmModalCloseButton = confirmModal.querySelector('.close-button');
 
-        // Variáveis globais
-        let allCollections = {};
-        let currentCollectionName = null;
-        let currentCollectionData = [];
-        let editingIndex = -1;
-
-        // Funções auxiliares
+        // --- Funções Auxiliares ---
         function showMessage(message, type = 'success') {
             messageBox.textContent = message;
             messageBox.className = `message-box ${type}`;
@@ -970,46 +984,59 @@
             return div.innerHTML;
         }
 
-        // Storage com Enhanced Storage
-        async function loadAllCollections() {
-            try {
-                const stored = await storageManager.getItem('allEquipmentCollections');
-                allCollections = stored || {};
-                renderCollectionsList();
-            } catch (error) {
-                console.error('Erro ao carregar:', error);
-                allCollections = {};
-                renderCollectionsList();
-            }
+        // --- Funções de Gerenciamento de Modal ---
+        function showNameCollectionModal(title = "Nome da Nova Coleta", message = "") {
+            document.getElementById('modalTitle').textContent = title;
+            modalMessage.textContent = message;
+            collectionNameInput.value = '';
+            nameCollectionModal.style.display = 'flex';
+            return new Promise((resolve, reject) => {
+                const handleConfirm = () => {
+                    nameCollectionModal.style.display = 'none';
+                    confirmNameBtn.removeEventListener('click', handleConfirm);
+                    cancelNameBtn.removeEventListener('click', handleCancel);
+                    modalCloseButton.removeEventListener('click', handleCancel);
+                    resolve(collectionNameInput.value.trim());
+                };
+                const handleCancel = () => {
+                    nameCollectionModal.style.display = 'none';
+                    confirmNameBtn.removeEventListener('click', handleConfirm);
+                    cancelNameBtn.removeEventListener('click', handleCancel);
+                    modalCloseButton.removeEventListener('click', handleCancel);
+                    reject(new Error('Criação de coleta cancelada.'));
+                };
+                confirmNameBtn.addEventListener('click', handleConfirm);
+                cancelNameBtn.addEventListener('click', handleCancel);
+                modalCloseButton.addEventListener('click', handleCancel);
+            });
         }
 
-        async function saveAllCollections() {
-            try {
-                await storageManager.setItem('allEquipmentCollections', allCollections);
-                renderCollectionsList();
-            } catch (error) {
-                console.error('Erro ao salvar:', error);
-                showMessage('Erro ao salvar dados', 'error');
-            }
+        function showConfirmModal(title, message) {
+            confirmModalTitle.textContent = title;
+            confirmModalMessage.textContent = message;
+            confirmModal.style.display = 'flex';
+            return new Promise((resolve) => {
+                const handleConfirm = () => {
+                    confirmModal.style.display = 'none';
+                    confirmActionBtn.removeEventListener('click', handleConfirm);
+                    cancelActionBtn.removeEventListener('click', handleCancel);
+                    confirmModalCloseButton.removeEventListener('click', handleCancel);
+                    resolve(true);
+                };
+                const handleCancel = () => {
+                    confirmModal.style.display = 'none';
+                    confirmActionBtn.removeEventListener('click', handleConfirm);
+                    cancelActionBtn.removeEventListener('click', handleCancel);
+                    confirmModalCloseButton.removeEventListener('click', handleCancel);
+                    resolve(false);
+                };
+                confirmActionBtn.addEventListener('click', handleConfirm);
+                cancelActionBtn.addEventListener('click', handleCancel);
+                confirmModalCloseButton.addEventListener('click', handleCancel);
+            });
         }
 
-        function loadCurrentCollectionData() {
-            if (currentCollectionName && allCollections[currentCollectionName]) {
-                currentCollectionData = allCollections[currentCollectionName];
-            } else {
-                currentCollectionData = [];
-            }
-            updateRecordCount();
-        }
-
-        async function saveCurrentCollectionData() {
-            if (currentCollectionName) {
-                allCollections[currentCollectionName] = currentCollectionData;
-                await saveAllCollections();
-            }
-        }
-
-        // Views
+        // --- Funções de Gerenciamento de Views ---
         function showView(viewId) {
             const views = [mainScreen, collectionsView, collectionDataView];
             views.forEach(view => {
@@ -1042,18 +1069,375 @@
             }
         }
 
-        // Resto do código original adaptado...
-        // [Todo o código original seria incluído aqui com as adaptações necessárias]
+        // --- Funções de Gerenciamento de Dados ---
+        async function loadAllCollections() {
+            try {
+                const stored = await storageManager.getItem('allEquipmentCollections');
+                if (stored) {
+                    allCollections = stored;
+                } else {
+                    allCollections = {};
+                }
+                renderCollectionsList();
+            } catch (error) {
+                console.error('Erro ao carregar coleções:', error);
+                allCollections = {};
+                renderCollectionsList();
+            }
+        }
 
-        // Inicialização
-        window.onload = async function() {
-            await loadAllCollections();
-            showView('mainScreen');
-            updateConnectionStatus();
+        async function saveAllCollections() {
+            try {
+                await storageManager.setItem('allEquipmentCollections', allCollections);
+                renderCollectionsList();
+            } catch (error) {
+                console.error('Erro ao salvar coleções:', error);
+                showMessage('Erro ao salvar dados', 'error');
+            }
+        }
+
+        function loadCurrentCollectionData() {
+            if (currentCollectionName && allCollections[currentCollectionName]) {
+                currentCollectionData = allCollections[currentCollectionName];
+            } else {
+                currentCollectionData = [];
+            }
+            updateRecordCount();
+        }
+
+        async function saveCurrentCollectionData() {
+            if (currentCollectionName) {
+                allCollections[currentCollectionName] = currentCollectionData;
+                await saveAllCollections();
+            }
+        }
+
+        // --- Funções de Renderização e Lógica da Tabela de Itens ---
+        function renderTable() {
+            exchangeTableBody.innerHTML = '';
+            if (currentCollectionData.length === 0) {
+                exchangeTableBody.innerHTML = '<tr><td colspan="13" class="text-center py-4 text-gray-500">Nenhum item registrado nesta coleta ainda.</td></tr>';
+                return;
+            }
+
+            currentCollectionData.forEach((item, index) => {
+                const row = exchangeTableBody.insertRow();
+                row.innerHTML = `
+                    <td class="py-2 px-4">${escapeHTML(item.type || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.brand || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.model || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.serialNumber || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.patSiads || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.patEbserh || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.patFub || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.building || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.floor || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.sector || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.user || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.observation || '')}</td>
+                    <td class="py-2 px-4 text-center">
+                        <button onclick="editItem(${index})" class="btn-secondary text-sm px-2 py-1 mr-1">Editar</button>
+                        <button onclick="deleteItem(${index})" class="btn-danger text-sm px-2 py-1">Excluir</button>
+                    </td>
+                `;
+            });
+        }
+
+        dataEntryForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const newItem = {
+                type: typeInput.value.trim(),
+                brand: brandInput.value.trim(),
+                model: modelInput.value.trim(),
+                serialNumber: serialNumberInput.value.trim(),
+                patSiads: patSiadsInput.value.trim(),
+                patEbserh: patEbserhInput.value.trim(),
+                patFub: patFubInput.value.trim(),
+                building: buildingInput.value.trim(),
+                floor: floorInput.value.trim(),
+                sector: sectorInput.value.trim(),
+                user: userInput.value.trim(),
+                observation: observationInput.value.trim()
+            };
+
+            const requiredFields = {
+                'TIPO': newItem.type,
+                'MARCA': newItem.brand,
+                'PRÉDIO': newItem.building,
+                'ANDAR': newItem.floor,
+                'SETOR/SALA': newItem.sector
+            };
+
+            for (const fieldName in requiredFields) {
+                if (requiredFields[fieldName] === '') {
+                    showMessage(`O campo "${fieldName}" é obrigatório.`, 'error');
+                    return;
+                }
+            }
+
+            const patNumberFields = [
+                { name: 'PAT. SIADS', value: newItem.patSiads },
+                { name: 'PAT. EBSERH', value: newItem.patEbserh }
+            ];
+
+            for (const field of patNumberFields) {
+                if (field.value !== '' && !/^\d*$/.test(field.value)) {
+                    showMessage(`O campo "${field.name}" deve conter apenas números.`, 'error');
+                    return;
+                }
+            }
+
+            const inventarioFields = [newItem.serialNumber, newItem.patSiads, newItem.patEbserh, newItem.patFub];
+            const isAnyInventarioFieldFilled = inventarioFields.some(field => field !== '');
+
+            if (!isAnyInventarioFieldFilled) {
+                showMessage('Pelo menos um dos campos do grupo INVENTÁRIO (NÚMERO DE SÉRIE, PAT. SIADS, PAT. EBSERH, PAT. FUB) deve ser preenchido.', 'error');
+                return;
+            }
+
+            if (editingIndex === -1) {
+                currentCollectionData.push(newItem);
+                showMessage('Item adicionado com sucesso!');
+            } else {
+                currentCollectionData[editingIndex] = newItem;
+                showMessage('Item atualizado com sucesso!');
+                editingIndex = -1;
+                addUpdateBtn.textContent = 'Adicionar Item';
+            }
+
+            await saveCurrentCollectionData();
+            renderTable();
+            dataEntryForm.reset();
+            showDataViewTab('form');
+        });
+
+        window.editItem = function(index) {
+            const itemToEdit = currentCollectionData[index];
+            typeInput.value = itemToEdit.type || '';
+            brandInput.value = itemToEdit.brand || '';
+            modelInput.value = itemToEdit.model || '';
+            serialNumberInput.value = itemToEdit.serialNumber || '';
+            patSiadsInput.value = itemToEdit.patSiads || '';
+            patEbserhInput.value = itemToEdit.patEbserh || '';
+            patFubInput.value = itemToEdit.patFub || '';
+            buildingInput.value = itemToEdit.building || '';
+            floorInput.value = itemToEdit.floor || '';
+            sectorInput.value = itemToEdit.sector || '';
+            userInput.value = itemToEdit.user || '';
+            observationInput.value = itemToEdit.observation || '';
+
+            editingIndex = index;
+            addUpdateBtn.textContent = 'Atualizar Item';
+            showMessage('Editando item. Altere os campos e clique em "Atualizar Item".');
+            showDataViewTab('form');
         };
 
-        // Event listeners (adaptados para async/await)
-        // [Todos os event listeners originais seriam incluídos aqui]
+        window.deleteItem = async function(index) {
+            const confirmed = await showConfirmModal('Excluir Item', 'Tem certeza que deseja excluir este item?');
+            if (confirmed) {
+                currentCollectionData.splice(index, 1);
+                await saveCurrentCollectionData();
+                renderTable();
+                showMessage('Item excluído com sucesso!', 'error');
+            }
+        };
+
+        clearFormBtn.addEventListener('click', function() {
+            dataEntryForm.reset();
+            editingIndex = -1;
+            addUpdateBtn.textContent = 'Adicionar Item';
+            showMessage('Formulário limpo.');
+        });
+
+        clearAllItemsBtn.addEventListener('click', async function() {
+            const confirmed = await showConfirmModal('Limpar Coleta', `ATENÇÃO: Tem certeza que deseja APAGAR TODOS os itens da coleta "${currentCollectionName}"? Esta ação é irreversível!`);
+            if (confirmed) {
+                currentCollectionData = [];
+                await saveCurrentCollectionData();
+                renderTable();
+                showMessage(`Todos os itens da coleta "${currentCollectionName}" foram apagados.`, 'error');
+                showDataViewTab('form');
+            }
+        });
+
+        // --- Funções da Lista de Coletas ---
+        function renderCollectionsList() {
+            collectionsList.innerHTML = '';
+            const collectionNames = Object.keys(allCollections);
+
+            if (collectionNames.length === 0) {
+                collectionsList.innerHTML = '<p class="text-center text-gray-500">Nenhuma coleta criada ainda.</p>';
+                return;
+            }
+
+            collectionNames.forEach(name => {
+                const collectionItem = document.createElement('div');
+                collectionItem.classList.add('collection-item');
+                collectionItem.innerHTML = `
+                    <span>${escapeHTML(name)}</span>
+                    <div class="collection-actions">
+                        <button onclick="accessExistingCollection('${escapeHTML(name)}')" class="btn-primary text-sm px-2 py-1">Acessar</button>
+                        <button onclick="exportCollection('${escapeHTML(name)}')" class="btn-success text-sm px-2 py-1">Exportar</button>
+                        <button onclick="deleteCollection('${escapeHTML(name)}')" class="btn-danger text-sm px-2 py-1">Excluir</button>
+                    </div>
+                `;
+                collectionsList.appendChild(collectionItem);
+            });
+        }
+
+        window.accessExistingCollection = function(collectionName) {
+            currentCollectionName = collectionName;
+            currentCollectionTitle.textContent = `Coleta: ${currentCollectionName}`;
+            loadCurrentCollectionData();
+            showView('collectionDataView');
+            showDataViewTab('form');
+        };
+
+        window.exportCollection = function(collectionName) {
+            const dataToExport = allCollections[collectionName] || [];
+            if (dataToExport.length === 0) {
+                showMessage(`A coleta "${collectionName}" não possui dados para exportar.`, 'error');
+                return;
+            }
+
+            const headers = [
+                "TIPO", "MARCA", "MODELO", "NÚMERO DE SÉRIE",
+                "PAT. SIADS", "PAT. EBSERH", "PAT. FUB",
+                "PRÉDIO", "ANDAR", "SETOR/SALA", "USUÁRIO", "OBSERVAÇÃO"
+            ];
+
+            const escapeCsv = (value) => {
+                if (value === null || value === undefined) return '';
+                let stringValue = String(value);
+                if (stringValue.includes(';') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
+                    return `"${stringValue.replace(/"/g, '""')}"`;
+                }
+                return stringValue;
+            };
+
+            let csvContent = headers.map(escapeCsv).join(';') + '\n';
+            dataToExport.forEach(item => {
+                const row = [
+                    item.type, item.brand, item.model, item.serialNumber,
+                    item.patSiads, item.patEbserh, item.patFub,
+                    item.building, item.floor, item.sector, item.user, item.observation
+                ].map(escapeCsv).join(';');
+                csvContent += row + '\n';
+            });
+
+            const csvContentWithBOM = '\uFEFF' + csvContent;
+
+            csvOutput.value = csvContentWithBOM;
+            csvOutputContainer.classList.remove('hidden');
+            showMessage(`Dados da coleta "${collectionName}" prontos para exportação CSV.`);
+
+            setTimeout(() => {
+                csvOutputContainer.classList.add('hidden');
+            }, 15000);
+        };
+
+        window.deleteCollection = async function(collectionName) {
+            const confirmed = await showConfirmModal('Excluir Coleta', `Tem certeza que deseja APAGAR a coleta "${collectionName}" e todos os seus itens? Esta ação é irreversível!`);
+            if (confirmed) {
+                delete allCollections[collectionName];
+                await saveAllCollections();
+                showMessage(`Coleta "${collectionName}" excluída com sucesso!`, 'error');
+                renderCollectionsList();
+            }
+        };
+
+        // --- Listeners de Eventos ---
+        createNewCollectionBtn.addEventListener('click', async () => {
+            try {
+                const name = await showNameCollectionModal();
+                if (name) {
+                    if (allCollections[name]) {
+                        modalMessage.textContent = 'Já existe uma coleta com este nome. Por favor, escolha outro.';
+                        nameCollectionModal.style.display = 'flex';
+                        return;
+                    }
+                    allCollections[name] = [];
+                    await saveAllCollections();
+                    showMessage(`Coleta "${name}" criada com sucesso!`);
+                    accessExistingCollection(name);
+                }
+            } catch (error) {
+                showMessage('Criação de coleta cancelada.', 'error');
+            }
+        });
+
+        accessCollectionBtn.addEventListener('click', () => {
+            renderCollectionsList();
+            showView('collectionsView');
+        });
+
+        backToMainBtn.addEventListener('click', () => {
+            showView('mainScreen');
+        });
+
+        showFormBtn.addEventListener('click', () => showDataViewTab('form'));
+        showTableBtn.addEventListener('click', () => showDataViewTab('table'));
+
+        homeButton.addEventListener('click', () => {
+            showView('mainScreen');
+        });
+
+        backToCollectionsBtn.addEventListener('click', () => {
+            showView('collectionsView');
+        });
+
+        exportCsvBtn.addEventListener('click', function() {
+            exportCollection(currentCollectionName);
+        });
+
+        copyCsvBtn.addEventListener('click', function() {
+            csvOutput.select();
+            document.execCommand('copy');
+            showMessage('CSV copiado para a área de transferência!');
+        });
+
+        downloadCsvBtn.addEventListener('click', function() {
+            const filename = `coleta_${currentCollectionName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+            const blob = new Blob([csvOutput.value], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showMessage('Arquivo CSV baixado!');
+            } else {
+                showMessage('Seu navegador não suporta download direto. Por favor, copie o texto manualmente.', 'error');
+            }
+        });
+
+        // --- Inicialização ---
+        window.onload = async function() {
+            try {
+                console.log('🚀 Iniciando PWA Coletas...');
+                
+                // Inicializar managers
+                storageManager = new SimpleStorageManager();
+                pwaManager = new SimplePWAManager();
+                
+                // Carregar dados
+                await loadAllCollections();
+                
+                // Mostrar tela inicial
+                showView('mainScreen');
+                
+                console.log('✅ PWA Coletas iniciado com sucesso!');
+                showMessage('Sistema carregado com sucesso! 🎉');
+                
+            } catch (error) {
+                console.error('❌ Erro na inicialização:', error);
+                showMessage('Erro ao carregar sistema', 'error');
+            }
+        };
     </script>
 </body>
 </html>
