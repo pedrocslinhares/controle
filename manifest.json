@@ -1,13 +1,13 @@
 {
   "name": "Controle de Coletas de Equipamentos",
   "short_name": "Coletas",
-  "description": "Sistema para controle e gerenciamento de coletas de equipamentos",
-  "start_url": "/coletav2.html",
+  "description": "Sistema para controle e gerenciamento de coletas de equipamentos com controle de vínculos patrimoniais",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#f0f2f5",
   "theme_color": "#4f46e5",
   "orientation": "portrait-primary",
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "utilities"],
   "lang": "pt-BR",
   "scope": "/",
   "icons": [
@@ -65,10 +65,10 @@
       "name": "Nova Coleta",
       "short_name": "Nova",
       "description": "Criar uma nova coleta de equipamentos",
-      "url": "/coletav2.html#nova-coleta",
+      "url": "/index.html#nova-coleta",
       "icons": [
         {
-          "src": "icons/shortcut-nova.png",
+          "src": "icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]
@@ -77,10 +77,10 @@
       "name": "Minhas Coletas",
       "short_name": "Coletas",
       "description": "Acessar coletas existentes",
-      "url": "/coletav2.html#coletas",
+      "url": "/index.html#coletas",
       "icons": [
         {
-          "src": "icons/shortcut-lista.png",
+          "src": "icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]

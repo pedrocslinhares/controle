@@ -475,6 +475,14 @@
             background: rgba(255, 255, 255, 0.3);
         }
 
+        /* Dica de Vínculo */
+        .vinculo-hint {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -648,8 +656,11 @@
 
                     <!-- GRUPO: DETALHES -->
                     <div>
-                        <label for="user">USUÁRIO:</label>
-                        <input type="text" id="user" name="user">
+                        <label for="vinculo">VÍNCULO:</label>
+                        <input type="number" id="vinculo" name="vinculo" placeholder="Nº patrimônio do computador">
+                        <div class="vinculo-hint">
+                            💡 Para MONITOR/RAMAL: informe o PAT do computador vinculado
+                        </div>
                     </div>
                     <div style="grid-column: 1 / -1;">
                         <label for="observation">OBSERVAÇÃO:</label>
@@ -680,7 +691,7 @@
                                 <th>Prédio</th>
                                 <th>Andar</th>
                                 <th>Setor/Sala</th>
-                                <th>Usuário</th>
+                                <th>Vínculo</th>
                                 <th>Observação</th>
                                 <th class="text-center">Ações</th>
                             </tr>
@@ -893,7 +904,7 @@
         }
 
         // =============================================================================
-        // SISTEMA PRINCIPAL (Baseado no código original)
+        // SISTEMA PRINCIPAL (Baseado no código original com campo VÍNCULO)
         // =============================================================================
 
         // --- Variáveis de Estado Global ---
@@ -932,7 +943,7 @@
         const buildingInput = document.getElementById('building');
         const floorInput = document.getElementById('floor');
         const sectorInput = document.getElementById('sector');
-        const userInput = document.getElementById('user');
+        const vinculoInput = document.getElementById('vinculo'); // ALTERADO: user -> vinculo
         const observationInput = document.getElementById('observation');
 
         const addUpdateBtn = document.getElementById('addUpdateBtn');
@@ -1133,7 +1144,7 @@
                     <td class="py-2 px-4">${escapeHTML(item.building || '')}</td>
                     <td class="py-2 px-4">${escapeHTML(item.floor || '')}</td>
                     <td class="py-2 px-4">${escapeHTML(item.sector || '')}</td>
-                    <td class="py-2 px-4">${escapeHTML(item.user || '')}</td>
+                    <td class="py-2 px-4">${escapeHTML(item.vinculo || '')}</td>
                     <td class="py-2 px-4">${escapeHTML(item.observation || '')}</td>
                     <td class="py-2 px-4 text-center">
                         <button onclick="editItem(${index})" class="btn-secondary text-sm px-2 py-1 mr-1">Editar</button>
@@ -1157,7 +1168,7 @@
                 building: buildingInput.value.trim(),
                 floor: floorInput.value.trim(),
                 sector: sectorInput.value.trim(),
-                user: userInput.value.trim(),
+                vinculo: vinculoInput.value.trim(), // ALTERADO: user -> vinculo
                 observation: observationInput.value.trim()
             };
 
@@ -1176,9 +1187,11 @@
                 }
             }
 
+            // ALTERADO: Validação de números incluindo campo VÍNCULO
             const patNumberFields = [
                 { name: 'PAT. SIADS', value: newItem.patSiads },
-                { name: 'PAT. EBSERH', value: newItem.patEbserh }
+                { name: 'PAT. EBSERH', value: newItem.patEbserh },
+                { name: 'VÍNCULO', value: newItem.vinculo }
             ];
 
             for (const field of patNumberFields) {
@@ -1224,7 +1237,7 @@
             buildingInput.value = itemToEdit.building || '';
             floorInput.value = itemToEdit.floor || '';
             sectorInput.value = itemToEdit.sector || '';
-            userInput.value = itemToEdit.user || '';
+            vinculoInput.value = itemToEdit.vinculo || ''; // ALTERADO: user -> vinculo
             observationInput.value = itemToEdit.observation || '';
 
             editingIndex = index;
@@ -1301,10 +1314,11 @@
                 return;
             }
 
+            // ALTERADO: Header "USUÁRIO" -> "VÍNCULO"
             const headers = [
                 "TIPO", "MARCA", "MODELO", "NÚMERO DE SÉRIE",
                 "PAT. SIADS", "PAT. EBSERH", "PAT. FUB",
-                "PRÉDIO", "ANDAR", "SETOR/SALA", "USUÁRIO", "OBSERVAÇÃO"
+                "PRÉDIO", "ANDAR", "SETOR/SALA", "VÍNCULO", "OBSERVAÇÃO"
             ];
 
             const escapeCsv = (value) => {
@@ -1321,7 +1335,9 @@
                 const row = [
                     item.type, item.brand, item.model, item.serialNumber,
                     item.patSiads, item.patEbserh, item.patFub,
-                    item.building, item.floor, item.sector, item.user, item.observation
+                    item.building, item.floor, item.sector, 
+                    item.vinculo || item.user || '', // MIGRAÇÃO: suporte a dados antigos
+                    item.observation
                 ].map(escapeCsv).join(';');
                 csvContent += row + '\n';
             });
@@ -1418,7 +1434,7 @@
         // --- Inicialização ---
         window.onload = async function() {
             try {
-                console.log('🚀 Iniciando PWA Coletas...');
+                console.log('🚀 Iniciando PWA Coletas com Campo VÍNCULO...');
                 
                 // Inicializar managers
                 storageManager = new SimpleStorageManager();

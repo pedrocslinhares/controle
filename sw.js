@@ -1,19 +1,22 @@
-const CACHE_NAME = 'coletas-v1';
+const CACHE_NAME = 'coletas-v2.0';
 const urlsToCache = [
-  '/coletav2.html',
+  '/index.html',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
 ];
 
 // Instalar o Service Worker
 self.addEventListener('install', event => {
+  console.log('Service Worker: Instalando versão 2.0 com campo VÍNCULO');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Cache aberto');
+        console.log('Cache aberto - versão 2.0');
         return cache.addAll(urlsToCache);
       })
   );
+  // Força a ativação imediata da nova versão
+  self.skipWaiting();
 });
 
 // Interceptar requisições de rede
@@ -50,17 +53,21 @@ self.addEventListener('fetch', event => {
 
 // Atualizar o Service Worker
 self.addEventListener('activate', event => {
+  console.log('Service Worker: Ativando versão 2.0');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
+            console.log('Service Worker: Removendo cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+  // Assume controle de todas as abas abertas
+  return self.clients.claim();
 });
 
 // Sincronização em background
@@ -71,15 +78,15 @@ self.addEventListener('sync', event => {
 });
 
 function doBackgroundSync() {
-  // Implementar sincronização de dados quando voltar online
-  console.log('Sincronização em background executada');
+  console.log('Service Worker: Sincronização em background executada');
+  // Aqui você pode implementar lógica para sincronizar dados quando voltar online
   return Promise.resolve();
 }
 
 // Notificações push (opcional)
 self.addEventListener('push', event => {
   const options = {
-    body: event.data ? event.data.text() : 'Nova atualização disponível',
+    body: event.data ? event.data.text() : 'Nova atualização disponível no sistema de coletas',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
     vibrate: [100, 50, 100],
@@ -91,23 +98,24 @@ self.addEventListener('push', event => {
       {
         action: 'explore',
         title: 'Abrir App',
-        icon: '/icons/checkmark.png'
+        icon: '/icons/icon-72x72.png'
       },
       {
         action: 'close',
         title: 'Fechar',
-        icon: '/icons/xmark.png'
+        icon: '/icons/icon-72x72.png'
       }
     ]
   };
 
   event.waitUntil(
-    self.registration.showNotification('Coletas App', options)
+    self.registration.showNotification('Coletas - Sistema Patrimonial', options)
   );
 });
 
 // Manipular cliques em notificações
 self.addEventListener('notificationclick', event => {
+  console.log('Service Worker: Notificação clicada');
   event.notification.close();
 
   if (event.action === 'explore') {
@@ -116,3 +124,12 @@ self.addEventListener('notificationclick', event => {
     );
   }
 });
+
+// Mensagem para o console quando o SW está pronto
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+console.log('Service Worker 2.0: Sistema de Coletas com Controle de Vínculos Patrimoniais carregado');
